@@ -23,9 +23,8 @@ Nether is a project composed of reusable set of building blocks, projects, servi
  * [Benefits](documentation/overview.md#benefits)
 3.	[How it works?](documentation/howitworks.md)
  * [REST API](documentation/api/README.md)
-   * [Leaderboard](documentation/api/leaderboard/README.md)
-   * [Player Management](documentation/api/players/README.md)
- * Example scenarios: [Shooter Game](documentation/shooter.md)
+ * [Leaderboard](documentation/api/leaderboard/README.md)
+ * [Player Management](documentation/api/players/README.md)
 4.	[Architecture](documentation/architecture.md)
  * [Main components](documentation/architecture.md#main-components)
 5.	Getting Started
