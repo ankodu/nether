@@ -18,7 +18,3 @@ In working with gaming partners, from indie developers to AAA studios, we have r
 - Reliability; Nether services are built on top of the enterprise quality infrastructure provided by Microsoft Azure
 - Performance; a key technical requirement taken into consideration from the start of the project. Additionally, Microsoft Azure is available in many locations across the world, ensuring your services are always near your players
 - Scalability; Nether leverages the scaling capabilities of Microsoft Azure. You can start small, and scale easily as the populairty of your game rises
-
-## Scenarios
-
-[to do]
