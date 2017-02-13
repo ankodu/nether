@@ -21,7 +21,6 @@ Nether is a project composed of reusable set of building blocks, projects, servi
  * [Introduction - What is Nether?] (documentation/overview.md#introduction---what-is-nether)
  * [Features](documentation/overview.md#features)
  * [Benefits](documentation/overview.md#benefits)
- * [Scenarios](documentation/overview.md#scenarios)
 3.	[How it works?](documentation/howitworks.md)
  * [REST API](documentation/api/README.md)
    * [Leaderboard](documentation/api/leaderboard/README.md)
