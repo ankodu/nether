@@ -11,7 +11,7 @@ namespace Nether.Analytics
     public class EventHubOutputManager : IOutputManager
     {
         private string _ehConnectionString;
-        private IOutputFormatter _serializer;
+        private IMessageFormatter _serializer;
         private EventHubClient _client;
 
         /// <summary>
@@ -19,11 +19,11 @@ namespace Nether.Analytics
         /// </summary>
         /// <param name="outputEventHubConnectionString">The connection string for the event hub output.</param>
         public EventHubOutputManager(string outputEventHubConnectionString)
-            : this(outputEventHubConnectionString, new JsonOutputFormatter())
+            : this(outputEventHubConnectionString, new JsonMessageFormatter())
         {
         }
 
-        public EventHubOutputManager(string outputEventHubConnectionString, IOutputFormatter serializer)
+        public EventHubOutputManager(string outputEventHubConnectionString, IMessageFormatter serializer)
         {
             _serializer = serializer;
             _ehConnectionString = outputEventHubConnectionString;
@@ -50,14 +50,7 @@ namespace Nether.Analytics
             }
         }
 
-        public Task FlushAsync()
-        {
-            // this client does not "support" flushing, per-se, but we don't
-            // want to throw an exception, so we're just "ignoring" this
-            return Task.CompletedTask;
-        }
-
-        public Task OutputMessageAsync(string pipelineName, int idx, Message msg)
+        public Task OutputMessageAsync(string partitionId, string pipelineName, int index, Message msg)
         {
             string payload = _serializer.Format(msg);
 
@@ -69,6 +62,13 @@ namespace Nether.Analytics
             var eventData = new EventData(Encoding.UTF8.GetBytes(payload));
 
             return Client.SendAsync(eventData);
+        }
+
+        public Task FlushAsync(string partitionId)
+        {
+            // this client does not "support" flushing, per-se, but we don't
+            // want to throw an exception, so we're just "ignoring" this
+            return Task.CompletedTask;
         }
     }
 }

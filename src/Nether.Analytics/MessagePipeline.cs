@@ -1,7 +1,9 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-
+using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Nether.Analytics
@@ -12,10 +14,10 @@ namespace Nether.Analytics
         private IOutputManager[] _outputManagers;
 
         public string PipelineName { get; private set; }
-        public VersionedMessageType[] HandledMessageTypes { get; private set; }
+        public string[] HandledMessageTypes { get; private set; }
 
         public MessagePipeline(string pipelineName,
-            VersionedMessageType[] handledMessageTypes,
+            string[] handledMessageTypes,
             IMessageHandler[] gameEventHandlers,
             IOutputManager[] outputManagers)
         {
@@ -25,7 +27,7 @@ namespace Nether.Analytics
             _outputManagers = outputManagers;
         }
 
-        public async Task ProcessMessageAsync(Message msg)
+        public async Task ProcessMessageAsync(string partitionId, Message msg)
         {
             var handlerIdx = 0;
             foreach (var handler in _gameEventHandlers)
@@ -33,17 +35,24 @@ namespace Nether.Analytics
                 var result = await handler.ProcessMessageAsync(msg, PipelineName, handlerIdx++);
                 if (result == MessageHandlerResults.FailStopProcessing)
                 {
-                    //TODO: Implement better solution to breaking out of chain of processing messages
+                    //TODO: do something better here
                     return;
                 }
             }
 
+
             //TODO: Run output managers in parallel
-            var outputManagerIdx = 0;
+            var outputManagerIndex = 0;
             foreach (var outputManager in _outputManagers)
             {
-                await outputManager.OutputMessageAsync(PipelineName, outputManagerIdx++, msg);
+                await outputManager.OutputMessageAsync(partitionId, PipelineName, outputManagerIndex++, msg);
             }
+        }
+
+        public async Task FlushAsync(string partitionId)
+        {
+            var tasks = _outputManagers.Select(m => m.FlushAsync(partitionId));
+            await Task.WhenAll(tasks);
         }
     }
 }

@@ -4,7 +4,6 @@
 using Nether.Analytics.EventHubs;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,34 +11,69 @@ namespace Nether.Analytics.Parsers
 {
     public class EventHubListenerMessageJsonParser : IMessageParser<EventHubListenerMessage>
     {
-        public Message ParseMessage(EventHubListenerMessage unparsedMsg)
+        public EventHubListenerMessageJsonParser(ICorruptMessageHandler corruptMessageHandler)
+        {
+            CorruptMessageHandler = corruptMessageHandler;
+        }
+
+        public ICorruptMessageHandler CorruptMessageHandler { get; private set; }
+        public bool AllowDbgEnqueuedTime { get; set; } = false;
+
+        public async Task<Message> ParseMessageAsync(EventHubListenerMessage unparsedMsg)
         {
             var data = Encoding.UTF8.GetString(unparsedMsg.Body.Array, unparsedMsg.Body.Offset, unparsedMsg.Body.Count);
 
-            var json = JObject.Parse(data);
-            var gameEventType = (string)json["type"];
-            var version = (string)json["version"];
+            JObject json;
+            try
+            {
+                json = JObject.Parse(data);
+            }
+            catch //JSON serialization failed
+            {
+                await CorruptMessageHandler.HandleAsync(data);
+                return null;
+            }
 
-            //TODO: Handle incorrect message formats better
-            if (gameEventType == null || version == null)
-                throw new Exception("Unable to resolve Game Event Type, since game event doesn't contain type and/or version property");
+            var gameEventType = (string)json["type"];
+            if (gameEventType == null)
+            {
+                await CorruptMessageHandler.HandleAsync(data);
+                return null;
+            }
+
+            string version;
+            try
+            {
+                version = (string)json["version"];
+            }
+            catch
+            {
+                await CorruptMessageHandler.HandleAsync(data);
+                return null;
+            }
+
+            var dbgEnqueuedTime = (string)json["dbgEnqueuedTimeUtc"];
+
+
+            // If dbgEnqueuedTime is allowed and that property is set, then use it instead of the DateTime given by EventHub
+            var enqueuedTime = (AllowDbgEnqueuedTime && dbgEnqueuedTime != null) ? DateTime.Parse(dbgEnqueuedTime) : unparsedMsg.EnqueuedTime;
 
             var id = unparsedMsg.PartitionId + "_" + unparsedMsg.SequenceNumber;
 
             var msg = new Message
             {
                 Id = id,
-                MessageType = gameEventType,
+                Type = gameEventType,
                 Version = version,
-                EnqueueTimeUtc = unparsedMsg.EnqueuedTime,
+                EnqueuedTimeUtc = enqueuedTime,
             };
 
             msg.Properties["id"] = id;
-            msg.Properties["enqueueTimeUtc"] = msg.EnqueueTimeUtc.ToString();
+            msg.Properties["enqueuedTimeUtc"] = msg.EnqueuedTimeUtc.ToString();
 
             foreach (var p in json)
             {
-                //TODO: Replace below naive JSON parsing implementation with more sofisticated and robust
+                //TODO: Replace below naive JSON parsing implementation with more sophisticated and robust
 
                 var key = p.Key;
                 try
@@ -50,7 +84,7 @@ namespace Nether.Analytics.Parsers
                 }
                 catch (Exception)
                 {
-                    Console.WriteLine($"Unable to parse property:{key} as string on {msg.MessageType}");
+                    Console.WriteLine($"Unable to parse property:{key} as string on {msg.Type}");
                     Console.WriteLine("WARNING: Continuing anyway!!! TODO: Fix this parsing problem!!!");
                 }
             }

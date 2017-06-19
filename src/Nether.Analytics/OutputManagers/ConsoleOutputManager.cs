@@ -8,24 +8,29 @@ namespace Nether.Analytics
 {
     public class ConsoleOutputManager : IOutputManager
     {
-        private IOutputFormatter _serializer;
+        private IMessageFormatter _serializer;
+        private bool _enabled;
 
-        public ConsoleOutputManager(IOutputFormatter serializer)
+        public ConsoleOutputManager(IMessageFormatter serializer, bool enabled = true)
         {
             _serializer = serializer;
+            _enabled = enabled;
         }
 
-        public Task FlushAsync()
+        public Task OutputMessageAsync(string partitionId, string pipelineName, int index, Message msg)
         {
+            if (_enabled)
+            {
+                var str = _serializer.Format(msg);
+
+                Console.WriteLine(str);
+            }
+
             return Task.CompletedTask;
         }
 
-        public Task OutputMessageAsync(string pipelineName, int idx, Message msg)
+        public Task FlushAsync(string partitionId)
         {
-            var str = _serializer.Format(msg);
-
-            Console.WriteLine(str);
-
             return Task.CompletedTask;
         }
     }

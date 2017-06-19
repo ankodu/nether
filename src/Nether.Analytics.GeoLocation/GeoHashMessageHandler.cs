@@ -1,10 +1,8 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using GeoCoordinatePortable;
 using NGeoHash;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Nether.Analytics.GeoLocation
@@ -18,8 +16,9 @@ namespace Nether.Analytics.GeoLocation
         public bool CalculateGeoHashCenterCoordinates { get; set; } = true;
         public string GeoHashCenterLatProperty { get; set; } = "geoHashCenterLat";
         public string GeoHashCenterLonProperty { get; set; } = "geoHashCenterLon";
+        public string GeoHashCenterDistProperty { get; set; } = "geoHashCenterDist";
 
-        public Task<MessageHandlerResults> ProcessMessageAsync(Message msg, string pipelineName, int idx)
+        public Task<MessageHandlerResults> ProcessMessageAsync(Message msg, string pipelineName, int index)
         {
             //TODO: Handle incorrect messages that doesn't have the required properties
             var lat = double.Parse(msg.Properties[InputLatProperty]);
@@ -37,6 +36,11 @@ namespace Nether.Analytics.GeoLocation
 
                 msg.Properties[GeoHashCenterLatProperty] = x.Coordinates.Lat.ToString();
                 msg.Properties[GeoHashCenterLonProperty] = x.Coordinates.Lon.ToString();
+
+                var originCoordinates = new GeoCoordinate(lat, lon);
+                var geoHashCenter = new GeoCoordinate(x.Coordinates.Lat, x.Coordinates.Lon);
+
+                msg.Properties[GeoHashCenterDistProperty] = originCoordinates.GetDistanceTo(geoHashCenter).ToString("0");
             }
 
             return Task.FromResult(MessageHandlerResults.Success);

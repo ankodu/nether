@@ -1,12 +1,9 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System;
-using System.Collections.Generic;
-
 namespace Nether.Analytics.MessageFormats
 {
-    public class GeoLocation : INetherMessage
+    public class GeoLocation : ITypeVersionMessage
     {
         public string Type => "geo-location";
         public string Version => "1.0.0";

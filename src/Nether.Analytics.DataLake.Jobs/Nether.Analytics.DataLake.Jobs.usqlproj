@@ -10,6 +10,7 @@
     <Name>Nether.Analytics.ADLA</Name>
     <RootNamespace>Nether.Analytics.ADLA</RootNamespace>
     <RuntimeVersion>default</RuntimeVersion>
+    <OutputStreamPath>C:\dev\USQLDataRoot</OutputStreamPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -20,15 +21,9 @@
     <OutputPath>bin\Release\</OutputPath>
   </PropertyGroup>
   <ItemGroup>
-    <Script Include="clusters.usql" />
-    <Script Include="locations-dailyCount-medianCoords.usql" />
-    <Script Include="locations-monthlyCount-medianCoords.usql" />
-    <Script Include="locations-yearlyCount-medianCoords.usql" />
-  </ItemGroup>
-  <ItemGroup>
-    <ScriptCode Include="clusters.usql.cs">
-      <DependentUpon>clusters.usql</DependentUpon>
-    </ScriptCode>
+    <Script Include="GeoClusters.usql" />
+    <Script Include="DAU.usql" />
+    <Script Include="MAU.usql" />
   </ItemGroup>
   <Import Project="$(AppData)\Microsoft\DataLake\MsBuild\1.0\Usql.targets" />
 </Project>

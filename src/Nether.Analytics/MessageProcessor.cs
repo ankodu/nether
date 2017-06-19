@@ -4,6 +4,7 @@
 using Nether.Analytics.Parsers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,16 +13,48 @@ namespace Nether.Analytics
 {
     public class MessageProcessor<T>
     {
-        public MessageProcessor(IMessageListener<T> listner, IMessageParser<T> parser, IMessageRouter router)
-        {
-            Listener = listner;
-            Parser = parser;
-            Router = router;
-        }
+        private MessageProcessorInformation _info = new MessageProcessorInformation();
+        private Func<MessageProcessorInformation, Task> _infoFuncAsync;
+        private Timer _infoTimer;
+        private SemaphoreSlim _timerSemaphore = new SemaphoreSlim(1, 1);
 
         public IMessageListener<T> Listener { get; set; }
         public IMessageParser<T> Parser { get; set; }
         public IMessageRouter Router { get; set; }
+
+        //public long PerfMessagesPerSecond { get; private set; }
+
+        public MessageProcessor(IMessageListener<T> listener, IMessageParser<T> parser, IMessageRouter router, Func<MessageProcessorInformation, Task> infoFuncAsync = null)
+        {
+            Listener = listener;
+            Parser = parser;
+            Router = router;
+
+            if (infoFuncAsync != null)
+            {
+                _infoFuncAsync = infoFuncAsync;
+                _infoTimer = new Timer(OnTimer, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+            }
+        }
+
+        private async void OnTimer(object state)
+        {
+            // Use semaphore to make sure "_infoFuncAsync" is only called once at a time,
+            // i.e. if _infoFuncAsync takes longer time to execute than the timer interval
+            if (_timerSemaphore.Wait(0))
+            {
+                try
+                {
+                    _info.ResetInterval();
+
+                    await _infoFuncAsync(_info);
+                }
+                finally
+                {
+                    _timerSemaphore.Release();
+                }
+            }
+        }
 
         public async Task ProcessAndBlockAsync()
         {
@@ -32,66 +65,39 @@ namespace Nether.Analytics
 
         public async Task ProcessAndBlockAsync(CancellationToken cancellationToken)
         {
-            SetupCultureInfo();
+            CultureInfoEx.SetupNetherCultureInfo();
             await Listener.StartAsync(ProcessMessagesAsync);
             await cancellationToken.WhenCanceled();
         }
 
-        private async Task ProcessMessagesAsync(IEnumerable<T> unparsedMessages)
+        private async Task ProcessMessagesAsync(string partitionId, IEnumerable<T> unparsedMessages)
         {
-            //TODO: Run this loop in parallel
+            //Parallel.ForEach(unparsedMessages, async unparsedMessage =>
+            //{
+            //    var parsedMessage = await Parser.ParseMessageAsync(unparsedMessage);
+            //    if (parsedMessage == null)//incoming message was corrupt
+            //        return;//go on with the next message
+
+            //    await Router.RouteMessageAsync(parsedMessage);
+
+            //    _info.AddMessageCount(1);
+            //});
+
+            int i = 0;
+
             foreach (var unparsedMessage in unparsedMessages)
             {
-                var parsedMessage = Parser.ParseMessage(unparsedMessage);
-                await Router.RouteMessageAsync(parsedMessage);
+                var parsedMessage = await Parser.ParseMessageAsync(unparsedMessage);
+                if (parsedMessage == null)//incoming message was corrupt
+                    continue;//go on with the next message
+
+                await Router.RouteMessageAsync(partitionId, parsedMessage);
+                i++;
             }
-        }
 
-        private static void SetupCultureInfo()
-        {
-            // Create a unique culture for all threads inside the MessageProcessor
-            // in order to make sure serialization to and parsing from strings behaves similar.
-            // Nether uses a modified en-US culture with the RoundTrip Serialization of DateTimes
+            await Router.FlushAsync(partitionId);
 
-            // Example, running on machine set to sv-SE:
-            //
-            // var d = 3.14159265359D;
-            // var now = DateTime.Now;
-            // var utcNow = DateTime.UtcNow;
-            //
-            // Console.WriteLine(d);
-            // Console.WriteLine(now);
-            // Console.WriteLine(utcNow);
-            // Console.WriteLine(now.ToString("O"));
-            // Console.WriteLine(utcNow.ToString("O"));
-            //
-            // Outputs:
-            //
-            // 3,14159265359
-            // 2017-05-10 13:16:15
-            // 2017-05-10 11:16:15
-            // 2017-05-10T13:16:15.2588141+02:00
-            // 2017-05-10T11:16:15.2598169Z
-
-            var ci = new CultureInfo("en-US");
-            ci.DateTimeFormat.ShortDatePattern = "yyyy-MM-dd";
-            ci.DateTimeFormat.LongTimePattern = "THH:mm:ss.fffffffK";
-
-            CultureInfo.DefaultThreadCurrentCulture = ci;
-
-            // Example after custom CultureInfo is set
-            //
-            // Console.WriteLine(d);
-            // Console.WriteLine(now);
-            // Console.WriteLine(utcNow);
-            //
-            // Outputs:
-            //
-            // 3.14159265359 <- Notice that period is used instead of comma
-            // 2017-05-10 T13:16:15.2588141+02:00
-            // 2017-05-10 T11:16:15.2598169Z
-            //
-            //TODO: Figure out why we have an extra space between date and time
+            _info.AddMessageCount(i);
         }
     }
 }

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Nether.Analytics
@@ -10,16 +11,15 @@ namespace Nether.Analytics
     public class MessageRouter : IMessageRouter
     {
         private Dictionary<string, List<MessagePipeline>> _routingDictionary = new Dictionary<string, List<MessagePipeline>>();
+        private MessagePipeline _unhandledEventPipeline;
 
-        //private MessagePipeline _unhandledEventPipeline;
-
-        public MessageRouter(List<MessagePipeline> messagePipelines)
+        public MessageRouter(List<MessagePipeline> messagePipelines, MessagePipeline unhandledEventPipeline)
         {
             foreach (var pipeline in messagePipelines)
             {
                 foreach (var messageType in pipeline.HandledMessageTypes)
                 {
-                    if (_routingDictionary.TryGetValue(messageType.Key, out var existingPipelinesForMessageType))
+                    if (_routingDictionary.TryGetValue(messageType, out var existingPipelinesForMessageType))
                     {
                         existingPipelinesForMessageType.Add(pipeline);
                     }
@@ -27,32 +27,38 @@ namespace Nether.Analytics
                     {
                         var newPipelinesForMessageType = new List<MessagePipeline>();
                         newPipelinesForMessageType.Add(pipeline);
-                        _routingDictionary.Add(messageType.Key, newPipelinesForMessageType);
+                        _routingDictionary.Add(messageType, newPipelinesForMessageType);
                     }
                 }
             }
-
-            //_unhandledEventPipeline = unhandledEventPipeline;
+            _unhandledEventPipeline = unhandledEventPipeline;
         }
 
-        public async Task RouteMessageAsync(Message msg)
+        public async Task RouteMessageAsync(string partitionId, Message msg)
         {
-            //TODO: Fix Message Key to something more elegant
-            var versionedMessageType = new VersionedMessageType { MessageType = msg.MessageType, Version = msg.Version };
-
-            if (_routingDictionary.TryGetValue(versionedMessageType.Key, out var pipelines))
+            if (_routingDictionary.TryGetValue(msg.VersionedMessageType, out var pipelines))
             {
                 //TODO: Run loop in parallel
                 foreach (var pipeline in pipelines)
                 {
-                    await pipeline.ProcessMessageAsync(msg);
+                    await pipeline.ProcessMessageAsync(partitionId, msg);
                 }
             }
-            else
+            else if (_unhandledEventPipeline != null)
             {
-                Console.WriteLine($"No pipeline found for message type: {msg.MessageType}, version: {msg.Version}");
-                //TODO Implement unhandled pipeline here
-                //await _unhandledEventPipeline?.ProcessMessageAsync(msg);
+                //default pipeline
+                await _unhandledEventPipeline?.ProcessMessageAsync(partitionId, msg);
+            }
+        }
+
+        public async Task FlushAsync(string partitionId)
+        {
+            foreach (var pipelines in _routingDictionary.Values)
+            {
+                foreach (var pipeline in pipelines)
+                {
+                    await pipeline.FlushAsync(partitionId);
+                }
             }
         }
     }

@@ -1,9 +1,10 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Nether.Analytics;
+using Nether.Analytics.EventHubs;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 
 namespace AnalyticsTestClient
 {
@@ -13,32 +14,6 @@ namespace AnalyticsTestClient
 
         public static void Main(string[] args)
         {
-            SetupCultureInfo();
-            Greet();
-            Configure();
-            SetupPropertyCache();
-
-            new MainMenu().Show();
-
-            Console.WriteLine("Closing connection");
-            EventHubManager.CloseConnectionToEventHub().Wait();
-        }
-
-        private static void SetupCultureInfo()
-        {
-            // Create a unique culture for all threads inside the EventProcessor
-            // in order to make sure input and output of serialization and de-
-            // serialization all look according to expected.
-            // Nether uses a modified en-US culture
-            var netherCultureInfo = new CultureInfo("en-US");
-            netherCultureInfo.DateTimeFormat.ShortDatePattern = "yyyy-MM-dd";
-            netherCultureInfo.DateTimeFormat.LongTimePattern = "HH:mm:ss";
-
-            CultureInfo.DefaultThreadCurrentCulture = netherCultureInfo;
-        }
-
-        private static void Greet()
-        {
             Console.WriteLine();
             Console.WriteLine(@" _   _      _   _               ");
             Console.WriteLine(@"| \ | | ___| |_| |__   ___ _ __ ");
@@ -47,31 +22,24 @@ namespace AnalyticsTestClient
             Console.WriteLine(@"|_| \_|\___|\__|_| |_|\___|_|   ");
             Console.WriteLine(@"- Analytics Test Client -");
             Console.WriteLine();
-        }
 
-        private static void Configure()
-        {
-            // Set Configuration using Environment Variables
-            // Example from Admin PowerShell:
-            //   [Environment]::SetEnvironmentVariable("NETHER_INGEST_EVENTHUB_CONNECTIONSTRING", "Endpoint=sb://nether.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=xxxxx", "User")
-            //   [Environment]::SetEnvironmentVariable("NETHER_INGEST_EVENTHUB_NAME", "ingest", "User")
+            CultureInfoEx.SetupNetherCultureInfo();
+            Config.Check();
+            SetupPropertyCache();
 
-            Console.WriteLine("Configuring");
-            var ingestEventHubConnectionString = Environment.GetEnvironmentVariable("NETHER_INGEST_EVENTHUB_CONNECTIONSTRING");
-            var ingestEventHubName = Environment.GetEnvironmentVariable("NETHER_INGEST_EVENTHUB_NAME");
+            var client = new EventHubAnalyticsClient(Config.Root[Config.NAH_EHLISTENER_CONNECTIONSTRING], Config.Root[Config.NAH_EHLISTENER_EVENTHUBPATH]);
 
-            ConfigCache.EventHubConnectionString = ingestEventHubConnectionString;
-            ConfigCache.EventHubName = ingestEventHubName;
+            new MainMenu(client).Show();
 
-            SetupMenu.ShowCurrentConfig();
+            Console.WriteLine("Closing connection");
         }
 
         private static void SetupPropertyCache()
         {
             PropertyCache = new Dictionary<string, object>
             {
-                {"GameSessionId", Guid.NewGuid().ToString()},
-                {"EventCorrelationId", Guid.NewGuid().ToString()},
+                {"GameSession", RandomEx.GetUniqueShortId() },
+                {"EventCorrelationId", RandomEx.GetUniqueShortId()},
                 {"GamerTag", "gamer" },
                 {"DisplayName", "display" },
                 {"Value", 1 }
